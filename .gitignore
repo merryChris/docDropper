@@ -1,0 +1,6 @@
+# Ignore all swp files
+*.swo
+*.swp
+*~
+
+config.yaml
