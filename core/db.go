@@ -8,6 +8,7 @@ import (
 )
 
 type News struct {
+	Id      uint32
 	Source  string
 	Title   string
 	Summary string
@@ -37,7 +38,7 @@ func InitOrm(username string,
 
 func (this *NewsList) GetWangjiaNews(max int) error {
 	o := orm.NewOrm()
-	sql := fmt.Sprintf("SELECT source, title, summary, content FROM `wangjia_news` LIMIT %d", max)
+	sql := fmt.Sprintf("SELECT id, source, title, summary, content FROM `wangjia_news` LIMIT %d", max)
 	fmt.Printf("sql:%s\n", sql)
 	if _, err := o.Raw(sql).QueryRows(&this.Units); err != nil {
 		return err

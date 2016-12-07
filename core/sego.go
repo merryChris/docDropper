@@ -5,6 +5,7 @@ import (
 )
 
 type SegoReq struct {
+	Hash    string
 	Title   string
 	Content string
 }
@@ -12,16 +13,17 @@ type SegoReq struct {
 func (d *Dispatcher) segmenterWorker(shard int) {
 	for {
 		req := <-d.segmenterAddChannel[shard]
-		cr := pb.CorpusRequest{}
-		cr.Title = make([]string, 0)
-		cr.Content = make([]string, 0)
+		fr := pb.FitRequest{}
+		fr.Hash = req.Hash
+		fr.Title = make([]string, 0)
+		fr.Content = make([]string, 0)
 
 		if req.Title != "" {
 			segments := d.segmenter.Segment([]byte(req.Title))
 			for _, segment := range segments {
 				token := segment.Token().Text()
 				if !d.stopper.IsStopToken(token) {
-					cr.Title = append(cr.Title, token)
+					fr.Title = append(fr.Title, token)
 				}
 			}
 		}
@@ -30,11 +32,11 @@ func (d *Dispatcher) segmenterWorker(shard int) {
 			for _, segment := range segments {
 				token := segment.Token().Text()
 				if !d.stopper.IsStopToken(token) {
-					cr.Content = append(cr.Content, token)
+					fr.Content = append(fr.Content, token)
 				}
 			}
 		}
 
-		d.segmenterReturnChannel <- cr
+		d.segmenterReturnChannel <- fr
 	}
 }

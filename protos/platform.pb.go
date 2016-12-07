@@ -9,7 +9,9 @@ It is generated from these files:
 	platform.proto
 
 It has these top-level messages:
-	CorpusRequest
+	FitRequest
+	QueryRequest
+	QueryResponse
 	PlatReply
 */
 package protos
@@ -34,26 +36,66 @@ var _ = math.Inf
 // proto package needs to be updated.
 const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
-type CorpusRequest struct {
-	Title   []string `protobuf:"bytes,1,rep,name=title" json:"title,omitempty"`
-	Content []string `protobuf:"bytes,2,rep,name=content" json:"content,omitempty"`
+type FitRequest struct {
+	Hash    string   `protobuf:"bytes,1,opt,name=hash" json:"hash,omitempty"`
+	Title   []string `protobuf:"bytes,2,rep,name=title" json:"title,omitempty"`
+	Content []string `protobuf:"bytes,3,rep,name=content" json:"content,omitempty"`
 }
 
-func (m *CorpusRequest) Reset()                    { *m = CorpusRequest{} }
-func (m *CorpusRequest) String() string            { return proto.CompactTextString(m) }
-func (*CorpusRequest) ProtoMessage()               {}
-func (*CorpusRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
+func (m *FitRequest) Reset()                    { *m = FitRequest{} }
+func (m *FitRequest) String() string            { return proto.CompactTextString(m) }
+func (*FitRequest) ProtoMessage()               {}
+func (*FitRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{0} }
 
-func (m *CorpusRequest) GetTitle() []string {
+func (m *FitRequest) GetHash() string {
+	if m != nil {
+		return m.Hash
+	}
+	return ""
+}
+
+func (m *FitRequest) GetTitle() []string {
 	if m != nil {
 		return m.Title
 	}
 	return nil
 }
 
-func (m *CorpusRequest) GetContent() []string {
+func (m *FitRequest) GetContent() []string {
 	if m != nil {
 		return m.Content
+	}
+	return nil
+}
+
+type QueryRequest struct {
+	Keywords []string `protobuf:"bytes,1,rep,name=keywords" json:"keywords,omitempty"`
+}
+
+func (m *QueryRequest) Reset()                    { *m = QueryRequest{} }
+func (m *QueryRequest) String() string            { return proto.CompactTextString(m) }
+func (*QueryRequest) ProtoMessage()               {}
+func (*QueryRequest) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+
+func (m *QueryRequest) GetKeywords() []string {
+	if m != nil {
+		return m.Keywords
+	}
+	return nil
+}
+
+type QueryResponse struct {
+	Hashs []string `protobuf:"bytes,1,rep,name=hashs" json:"hashs,omitempty"`
+}
+
+func (m *QueryResponse) Reset()                    { *m = QueryResponse{} }
+func (m *QueryResponse) String() string            { return proto.CompactTextString(m) }
+func (*QueryResponse) ProtoMessage()               {}
+func (*QueryResponse) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{2} }
+
+func (m *QueryResponse) GetHashs() []string {
+	if m != nil {
+		return m.Hashs
 	}
 	return nil
 }
@@ -65,7 +107,7 @@ type PlatReply struct {
 func (m *PlatReply) Reset()                    { *m = PlatReply{} }
 func (m *PlatReply) String() string            { return proto.CompactTextString(m) }
 func (*PlatReply) ProtoMessage()               {}
-func (*PlatReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{1} }
+func (*PlatReply) Descriptor() ([]byte, []int) { return fileDescriptor0, []int{3} }
 
 func (m *PlatReply) GetMessage() string {
 	if m != nil {
@@ -75,7 +117,9 @@ func (m *PlatReply) GetMessage() string {
 }
 
 func init() {
-	proto.RegisterType((*CorpusRequest)(nil), "protos.CorpusRequest")
+	proto.RegisterType((*FitRequest)(nil), "protos.FitRequest")
+	proto.RegisterType((*QueryRequest)(nil), "protos.QueryRequest")
+	proto.RegisterType((*QueryResponse)(nil), "protos.QueryResponse")
 	proto.RegisterType((*PlatReply)(nil), "protos.PlatReply")
 }
 
@@ -91,6 +135,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type PlatformClient interface {
 	Fit(ctx context.Context, opts ...grpc.CallOption) (Platform_FitClient, error)
+	Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error)
 }
 
 type platformClient struct {
@@ -111,7 +156,7 @@ func (c *platformClient) Fit(ctx context.Context, opts ...grpc.CallOption) (Plat
 }
 
 type Platform_FitClient interface {
-	Send(*CorpusRequest) error
+	Send(*FitRequest) error
 	CloseAndRecv() (*PlatReply, error)
 	grpc.ClientStream
 }
@@ -120,7 +165,7 @@ type platformFitClient struct {
 	grpc.ClientStream
 }
 
-func (x *platformFitClient) Send(m *CorpusRequest) error {
+func (x *platformFitClient) Send(m *FitRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -135,10 +180,20 @@ func (x *platformFitClient) CloseAndRecv() (*PlatReply, error) {
 	return m, nil
 }
 
+func (c *platformClient) Query(ctx context.Context, in *QueryRequest, opts ...grpc.CallOption) (*QueryResponse, error) {
+	out := new(QueryResponse)
+	err := grpc.Invoke(ctx, "/protos.Platform/Query", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for Platform service
 
 type PlatformServer interface {
 	Fit(Platform_FitServer) error
+	Query(context.Context, *QueryRequest) (*QueryResponse, error)
 }
 
 func RegisterPlatformServer(s *grpc.Server, srv PlatformServer) {
@@ -151,7 +206,7 @@ func _Platform_Fit_Handler(srv interface{}, stream grpc.ServerStream) error {
 
 type Platform_FitServer interface {
 	SendAndClose(*PlatReply) error
-	Recv() (*CorpusRequest, error)
+	Recv() (*FitRequest, error)
 	grpc.ServerStream
 }
 
@@ -163,18 +218,41 @@ func (x *platformFitServer) SendAndClose(m *PlatReply) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *platformFitServer) Recv() (*CorpusRequest, error) {
-	m := new(CorpusRequest)
+func (x *platformFitServer) Recv() (*FitRequest, error) {
+	m := new(FitRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
+func _Platform_Query_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QueryRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(PlatformServer).Query(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/protos.Platform/Query",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(PlatformServer).Query(ctx, req.(*QueryRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _Platform_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "protos.Platform",
 	HandlerType: (*PlatformServer)(nil),
-	Methods:     []grpc.MethodDesc{},
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "Query",
+			Handler:    _Platform_Query_Handler,
+		},
+	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Fit",
@@ -188,15 +266,20 @@ var _Platform_serviceDesc = grpc.ServiceDesc{
 func init() { proto.RegisterFile("platform.proto", fileDescriptor0) }
 
 var fileDescriptor0 = []byte{
-	// 160 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0xe2, 0xe2, 0x2b, 0xc8, 0x49, 0x2c,
-	0x49, 0xcb, 0x2f, 0xca, 0xd5, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x62, 0x03, 0x53, 0xc5, 0x4a,
-	0xf6, 0x5c, 0xbc, 0xce, 0xf9, 0x45, 0x05, 0xa5, 0xc5, 0x41, 0xa9, 0x85, 0xa5, 0xa9, 0xc5, 0x25,
-	0x42, 0x22, 0x5c, 0xac, 0x25, 0x99, 0x25, 0x39, 0xa9, 0x12, 0x8c, 0x0a, 0xcc, 0x1a, 0x9c, 0x41,
-	0x10, 0x8e, 0x90, 0x04, 0x17, 0x7b, 0x72, 0x7e, 0x5e, 0x49, 0x6a, 0x5e, 0x89, 0x04, 0x13, 0x58,
-	0x1c, 0xc6, 0x55, 0x52, 0xe5, 0xe2, 0x0c, 0x00, 0x1a, 0x1d, 0x94, 0x5a, 0x90, 0x53, 0x09, 0x52,
-	0x96, 0x9b, 0x5a, 0x5c, 0x9c, 0x98, 0x0e, 0xd2, 0xce, 0x08, 0x52, 0x06, 0xe5, 0x1a, 0xd9, 0x73,
-	0x71, 0x04, 0x40, 0x5d, 0x20, 0x64, 0xcc, 0xc5, 0xec, 0x96, 0x59, 0x22, 0x24, 0x0a, 0x71, 0x4a,
-	0xb1, 0x1e, 0x8a, 0x03, 0xa4, 0x04, 0x61, 0xc2, 0x70, 0x63, 0x95, 0x18, 0x34, 0x18, 0x93, 0x20,
-	0x0e, 0x36, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0xd1, 0xfa, 0x20, 0xe8, 0xc9, 0x00, 0x00, 0x00,
+	// 231 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x09, 0x6e, 0x88, 0x02, 0xff, 0x5c, 0x50, 0x5d, 0x4b, 0xc3, 0x30,
+	0x14, 0x5d, 0xad, 0xd3, 0xed, 0xa2, 0x82, 0x97, 0x09, 0xa1, 0x4f, 0x23, 0x20, 0x0c, 0x1f, 0x86,
+	0x28, 0xf8, 0x13, 0x7c, 0xae, 0xfd, 0x07, 0x55, 0xaf, 0x6e, 0xd8, 0x35, 0x31, 0xf7, 0x0e, 0xe9,
+	0xbf, 0x37, 0x1f, 0xcd, 0x94, 0x3d, 0x25, 0xe7, 0xe4, 0x70, 0x3e, 0x02, 0x57, 0xb6, 0x6b, 0xe5,
+	0xc3, 0xb8, 0xdd, 0xda, 0x3a, 0x23, 0x06, 0xcf, 0xe2, 0xc1, 0xba, 0x06, 0x78, 0xde, 0x4a, 0x43,
+	0xdf, 0x7b, 0x62, 0x41, 0x84, 0xd3, 0x4d, 0xcb, 0x1b, 0x55, 0x2c, 0x8b, 0xd5, 0xbc, 0x89, 0x77,
+	0x5c, 0xc0, 0x54, 0xb6, 0xd2, 0x91, 0x3a, 0x59, 0x96, 0x9e, 0x4c, 0x00, 0x15, 0x9c, 0xbf, 0x99,
+	0x5e, 0xa8, 0x17, 0x55, 0x46, 0x3e, 0x43, 0x7d, 0x07, 0x17, 0x2f, 0x7b, 0x72, 0x43, 0xf6, 0xac,
+	0x60, 0xf6, 0x45, 0xc3, 0x8f, 0x71, 0xef, 0xec, 0x7d, 0x83, 0xf4, 0x80, 0xf5, 0x2d, 0x5c, 0x8e,
+	0x5a, 0xb6, 0xa6, 0x67, 0x0a, 0x61, 0x21, 0x34, 0x2b, 0x13, 0xf0, 0xb2, 0x79, 0xed, 0xeb, 0x37,
+	0x64, 0xbb, 0x21, 0x24, 0xef, 0x88, 0xb9, 0xfd, 0xa4, 0xb1, 0x66, 0x86, 0x0f, 0x02, 0xb3, 0x7a,
+	0x5c, 0x89, 0xf7, 0x50, 0xfa, 0x5d, 0x88, 0x69, 0x2e, 0xaf, 0xff, 0x46, 0x56, 0xd7, 0x99, 0x3b,
+	0x78, 0xea, 0xc9, 0xaa, 0xc0, 0x27, 0x98, 0xc6, 0x2e, 0xb8, 0xc8, 0xef, 0xff, 0x67, 0x54, 0x37,
+	0x47, 0x6c, 0x2a, 0xac, 0x27, 0xaf, 0xe9, 0x27, 0x1f, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0xca,
+	0xe4, 0x65, 0x84, 0x62, 0x01, 0x00, 0x00,
 }

@@ -1,6 +1,8 @@
 package core
 
 import (
+	"crypto/sha1"
+	"fmt"
 	"log"
 	"runtime"
 
@@ -21,8 +23,9 @@ type Dispatcher struct {
 	segmenter              sego.Segmenter
 	stopper                engine.StopTokens
 	client                 *PlatformClient
+	docsMapper             map[string]uint32
 	segmenterAddChannel    []chan SegoReq
-	segmenterReturnChannel chan pb.CorpusRequest
+	segmenterReturnChannel chan pb.FitRequest
 }
 
 // NewDispatcher 生成 Dispatcher，用来分发训练数据
@@ -41,9 +44,10 @@ func NewDispatcher(client *PlatformClient, conf *viper.Viper, numSegmenter int) 
 
 	d.segmenter.LoadDictionary("data/dictionary.txt")
 	d.stopper.Init("data/stop_tokens.txt")
+	d.docsMapper = make(map[string]uint32)
 
 	d.segmenterAddChannel = make([]chan SegoReq, numSegmenter)
-	d.segmenterReturnChannel = make(chan pb.CorpusRequest, SegmenterBufferSize)
+	d.segmenterReturnChannel = make(chan pb.FitRequest, SegmenterBufferSize)
 	for shard := 0; shard < d.numSego; shard++ {
 		d.segmenterAddChannel[shard] = make(chan SegoReq, SegmenterBufferSize)
 	}
@@ -62,9 +66,13 @@ func (d *Dispatcher) Dispatch() {
 		panic(err)
 	}
 
+	hf := sha1.New()
 	for _, news := range wangjiaNews.Units {
+		hf.Write([]byte(news.Title))
+		hash := fmt.Sprintf("%x", hf.Sum(nil))
+		d.docsMapper[hash] = news.Id
 		shard := murmur.Murmur3([]byte(news.Title)) % uint32(d.numSego)
-		d.segmenterAddChannel[shard] <- SegoReq{Title: news.Title, Content: news.Content}
+		d.segmenterAddChannel[shard] <- SegoReq{Hash: hash, Title: news.Title, Content: news.Content}
 	}
 }
 

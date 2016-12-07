@@ -35,12 +35,12 @@ func NewPlatformClient(address string) (*PlatformClient, error) {
 }
 
 // StreamingDoc 将数据传送给 Platform 训练数据
-func (pc *PlatformClient) StreamingDoc(doc *pb.CorpusRequest) error {
+func (pc *PlatformClient) StreamingDoc(doc *pb.FitRequest) error {
 	if !pc.initialized {
 		return errors.New("PlatformClient 未初始化。")
 	}
 
-	log.Println(doc.Title)
+	//log.Println(doc.Title)
 	if err := pc.fitStream.Send(doc); err != nil {
 		return err
 	}
