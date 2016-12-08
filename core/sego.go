@@ -1,8 +1,6 @@
 package core
 
-import (
-	pb "github.com/merryChris/docDropper/protos"
-)
+import pb "github.com/merryChris/docDropper/protos"
 
 type SegoReq struct {
 	Hash    string
@@ -12,7 +10,11 @@ type SegoReq struct {
 
 func (d *Dispatcher) segmenterWorker(shard int) {
 	for {
-		req := <-d.segmenterAddChannel[shard]
+		req, alive := <-d.segmenterAddChannel[shard]
+		if !alive {
+			break
+		}
+
 		fr := pb.FitRequest{}
 		fr.Hash = req.Hash
 		fr.Title = make([]string, 0)

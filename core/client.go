@@ -35,16 +35,28 @@ func NewPlatformClient(address string) (*PlatformClient, error) {
 }
 
 // StreamingDoc 将数据传送给 Platform 训练数据
-func (pc *PlatformClient) StreamingDoc(doc *pb.FitRequest) error {
+func (pc *PlatformClient) StreamingDoc(fr *pb.FitRequest) error {
 	if !pc.initialized {
 		return errors.New("PlatformClient 未初始化。")
 	}
 
-	//log.Println(doc.Title)
-	if err := pc.fitStream.Send(doc); err != nil {
+	if err := pc.fitStream.Send(fr); err != nil {
 		return err
 	}
 	return nil
+}
+
+// FeedingKeywords 将查询传送给 Platform 进行查询
+func (pc *PlatformClient) FeedingKeywords(qr *pb.QueryRequest) ([]string, error) {
+	if !pc.initialized {
+		return nil, errors.New("PlatformClient 未初始化。")
+	}
+
+	resp, err := pc.client.Query(context.Background(), qr)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Hashs, nil
 }
 
 // CloseStreamingDoc 关闭 Fit API 数据流
@@ -53,14 +65,16 @@ func (pc *PlatformClient) CloseStreamingDoc() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Closed 'Fit' API with %s.", reply.Message)
+	log.Printf("Client closed `Fit` API with `%s`.\n", reply.Message)
 	return nil
 }
 
 // Close 关闭到服务器的连接
 func (pc *PlatformClient) Close() {
 	if pc.initialized {
-		pc.conn.Close()
+		if err := pc.conn.Close(); err != nil {
+			panic(err)
+		}
 		pc.initialized = false
 	}
 }

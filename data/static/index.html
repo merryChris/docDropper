@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+<title>商业舆情平台新闻搜索</title>
+<link rel="shortcut icon" href="favicon.ico" type="image/x-icon" />
+<style>
+body { font-family: "Hiragino Sans GB", sans-serif; font-size:0.9em; margin-left: 100px;}
+p { line-height:150%;}
+#query { width: 400px; }
+table { border-collapse: collapse; border-spacing: 0; padding: 0px; width: 800px;}
+</style>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript">
+search = function() {
+	var query = $('input#query').val();
+	$.ajax({
+		url: "/search",
+		type: "GET",
+		data: { query: query },
+		dataType: "json",
+		success: function (res) {
+			var out = "<table border=0>";
+			var rank = 1;
+			for (var i = 0; i < res.units.length; i++) {
+				if (res.units[i] != null) {
+					out += "<tr>"
+					out += "<td width=30px>" + rank++ + "</td>"
+					out += "<td width=400px>" + res.units[i].title + "<br></td>"
+					out += "<td><a href=\"" + res.units[i].source + "\">" + res.units[i].source + "</a></td>";
+					out += "</tr>";
+				}
+			}
+			out += "</table>"
+			$('div#output').html(out);
+		},
+		error: function (xhr, ajaxOptions, thrownError) {
+		alert(xhr.status);
+		alert(thrownError);
+		}
+	});
+};
+$(document).ready(function() {
+	$('#query').keypress(function(e) {
+		if (!e) e = window.event;
+		var keyCode = e.keyCode || e.which;
+		if (keyCode == '13') {
+			search();
+		}
+	});
+});
+</script>
+</head>
+<body>
+<h2>商业舆情平台新闻搜索</h2>
+<p><input type="text" id="query"></p>
+<div id="output"></div>
+</body>
+</html>
