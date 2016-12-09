@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/merryChris/docDropper/core"
+	"github.com/spf13/viper"
 )
 
 type Greeter struct {
@@ -19,9 +20,9 @@ type SearchJsonResponse struct {
 	Units []*core.BriefNews `json:"units"`
 }
 
-func NewGreeter(d *core.Dispatcher) (*Greeter, error) {
+func NewGreeter(d *core.Dispatcher, conf *viper.Viper) (*Greeter, error) {
 	g := &Greeter{dispatcher: d}
-	if err := g.dispatcher.Dispatch(); err != nil {
+	if err := g.dispatcher.Dispatch(conf.GetBool("init_model"), uint32(conf.GetInt("num_news"))); err != nil {
 		return nil, err
 	}
 
@@ -42,7 +43,7 @@ func (g *Greeter) SearchJsonHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("Searching Results for `%s`:\n", query)
+	fmt.Printf("Here are %d searching results for `%s`:\n", len(outputs), query)
 	for i, bn := range outputs {
 		if bn != nil {
 			fmt.Printf("%d: %d %s %s\n", i+1, bn.Id, bn.Source, bn.Title)

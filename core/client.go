@@ -65,7 +65,7 @@ func (pc *PlatformClient) CloseStreamingDoc() error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Client closed `Fit` API with `%s`.\n", reply.Message)
+	log.Printf("Closed `Fit` API with `%s`.\n", reply.Message)
 	return nil
 }
 

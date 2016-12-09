@@ -15,11 +15,11 @@ type BriefNews struct {
 }
 
 type News struct {
-	Id      uint32
-	Source  string
-	Title   string
-	Summary string
-	Content string
+	Id      uint32 `orm:"column(nId)"`
+	Source  string `orm:"column(link)"`
+	Title   string `orm:"column(title)"`
+	Summary string `orm:"column(abstracts)"`
+	Content string `orm:"column(content)"`
 }
 
 type NewsList struct {
@@ -43,9 +43,9 @@ func InitOrm(username string,
 	return nil
 }
 
-func (this *NewsList) GetWangjiaNews(max int) error {
+func (this *NewsList) GetNews(limit uint32) error {
 	o := orm.NewOrm()
-	sql := fmt.Sprintf("SELECT id, source, title, summary, content FROM `wangjia_news` LIMIT %d", max)
+	sql := fmt.Sprintf("SELECT nId, link, title, abstracts, content FROM `news` LIMIT %d", limit)
 	fmt.Printf("sql: %s\n", sql)
 	if _, err := o.Raw(sql).QueryRows(&this.Units); err != nil {
 		return err

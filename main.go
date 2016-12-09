@@ -20,14 +20,6 @@ var (
 
 func main() {
 	flag.Parse()
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	go func() {
-		for _ = range c {
-			log.Println("捕获中断，退出服务器")
-			os.Exit(0)
-		}
-	}()
 
 	config := viper.New()
 	config.SetConfigType("yaml")
@@ -51,7 +43,7 @@ func main() {
 	}
 	defer dispatcher.Close()
 
-	greeter, err := web.NewGreeter(dispatcher)
+	greeter, err := web.NewGreeter(dispatcher, srvConf)
 	if err != nil {
 		panic(err)
 	}
@@ -60,5 +52,11 @@ func main() {
 	http.HandleFunc("/search", greeter.SearchJsonHandler)
 	http.Handle("/", http.FileServer(http.Dir(*staticFolder)))
 	log.Println("DocDropper Web 服务启动成功")
-	log.Fatal(http.ListenAndServe(srvConf.GetString("address"), nil))
+	go http.ListenAndServe(srvConf.GetString("address"), nil)
+
+	c := make(chan os.Signal, 1)
+	defer close(c)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	log.Println("捕获中断，退出服务器")
 }

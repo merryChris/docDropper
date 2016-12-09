@@ -73,32 +73,36 @@ func NewDispatcher(client *PlatformClient, conf *viper.Viper, numSegmenter int) 
 	return d, nil
 }
 
-func (d *Dispatcher) Dispatch() error {
+func (d *Dispatcher) Dispatch(initModel bool, numNews uint32) error {
 	if !d.initialized {
 		return errors.New("Dispatcher 尚未初始化")
 	}
 
-	wangjiaNews := &NewsList{}
-	if err := wangjiaNews.GetWangjiaNews(5); err != nil {
+	newsList := &NewsList{}
+	if err := newsList.GetNews(numNews); err != nil {
 		return err
 	}
 
 	hf := sha1.New()
 	d.docsLock.Lock()
-	for _, news := range wangjiaNews.Units {
+	for _, news := range newsList.Units {
 		hf.Write([]byte(news.Title))
 		hash := fmt.Sprintf("%x", hf.Sum(nil))
 		d.docsLock.mapper[hash] = &BriefNews{Id: news.Id, Source: news.Source, Title: news.Title}
-		shard := murmur.Murmur3([]byte(news.Title)) % uint32(d.numSego)
-		d.segmenterAddChannel[shard] <- SegoReq{Hash: hash, Title: news.Title, Content: news.Content}
+		if initModel {
+			shard := murmur.Murmur3([]byte(news.Title)) % uint32(d.numSego)
+			d.segmenterAddChannel[shard] <- SegoReq{Hash: hash, Title: news.Title, Content: news.Content}
+		}
 	}
 	d.docsLock.Unlock()
 
-	atomic.AddUint64(&d.numDocsAdded, uint64(len(wangjiaNews.Units)))
-	for {
-		runtime.Gosched()
-		if d.numDocsAdded == d.numDocsSent || !d.healthy {
-			break
+	if initModel {
+		atomic.AddUint64(&d.numDocsAdded, uint64(len(newsList.Units)))
+		for {
+			runtime.Gosched()
+			if d.numDocsAdded == d.numDocsSent || !d.healthy {
+				break
+			}
 		}
 	}
 	return nil
