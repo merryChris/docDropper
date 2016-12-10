@@ -23,13 +23,13 @@ search = function() {
 			if (res.units.length == 0) {
 				var out = "<p>请输入有效关键词</p>";
 			} else {
-				var out = "<table border=0>";
+				var out = "<table style=" + "width:90% border:0" + ">";
 				var rank = 1;
 				for (var i = 0; i < res.units.length; i++) {
 					if (res.units[i] != null) {
 						out += "<tr>"
 						out += "<td width=30px>" + rank++ + "</td>"
-						out += "<td width=400px>" + res.units[i].title + "<br></td>"
+						out += "<td width=400px>" + res.units[i].title + "</td>"
 						out += "<td><a href=\"" + res.units[i].source + "\">" + res.units[i].source + "</a></td>";
 						out += "</tr>";
 					}
