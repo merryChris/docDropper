@@ -14,6 +14,7 @@ import (
 type Greeter struct {
 	initialized bool
 	dispatcher  *core.Dispatcher
+	topK        int
 }
 
 type SearchJsonResponse struct {
@@ -22,10 +23,14 @@ type SearchJsonResponse struct {
 
 func NewGreeter(d *core.Dispatcher, conf *viper.Viper) (*Greeter, error) {
 	g := &Greeter{dispatcher: d}
-	if err := g.dispatcher.Dispatch(conf.GetBool("init_model"), uint32(conf.GetInt("num_news"))); err != nil {
+	if err := g.dispatcher.Dispatch(conf.GetBool("init_model"), uint64(conf.GetInt("num_news"))); err != nil {
+		return nil, err
+	}
+	if err := g.dispatcher.Index(uint64(conf.GetInt("num_news"))); err != nil {
 		return nil, err
 	}
 
+	g.topK = conf.GetInt("topk")
 	g.initialized = true
 	return g, nil
 }
@@ -37,7 +42,7 @@ func (g *Greeter) SearchJsonHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := r.URL.Query().Get("query")
-	outputs, err := g.dispatcher.Search(query)
+	outputs, err := g.dispatcher.Search(query, g.topK)
 	if err != nil {
 		log.Fatal(err)
 		return

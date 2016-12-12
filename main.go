@@ -37,7 +37,7 @@ func main() {
 	}
 	defer platformClient.Close()
 
-	dispatcher, err := core.NewDispatcher(platformClient, dbConf, srvConf.GetInt("num_segmenter"))
+	dispatcher, err := core.NewDispatcher(platformClient, dbConf, srvConf)
 	if err != nil {
 		panic(err)
 	}

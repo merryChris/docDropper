@@ -9,13 +9,13 @@ import (
 
 //NOTE: (zacky, 2016.DEC.7st) HOW TO NEST IT INTO `News`?
 type BriefNews struct {
-	Id     uint32 `json:"id"`
+	Id     uint64 `json:"id"`
 	Source string `json:"source"`
 	Title  string `json:"title"`
 }
 
 type News struct {
-	Id      uint32 `orm:"column(nId)"`
+	Id      uint64 `orm:"column(nId)"`
 	Source  string `orm:"column(link)"`
 	Title   string `orm:"column(title)"`
 	Summary string `orm:"column(abstracts)"`
@@ -43,7 +43,7 @@ func InitOrm(username string,
 	return nil
 }
 
-func (this *NewsList) GetNews(limit uint32) error {
+func (this *NewsList) GetNews(limit uint64) error {
 	o := orm.NewOrm()
 	sql := fmt.Sprintf("SELECT nId, link, title, abstracts, content FROM `news` LIMIT %d", limit)
 	fmt.Printf("sql: %s\n", sql)

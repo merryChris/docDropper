@@ -46,17 +46,31 @@ func (pc *PlatformClient) StreamingDoc(fr *pb.FitRequest) error {
 	return nil
 }
 
-// FeedingKeywords 将查询传送给 Platform 进行查询
-func (pc *PlatformClient) FeedingKeywords(qr *pb.QueryRequest) ([]string, error) {
+// FilteringTokens 将 tokens 传送给 Platform 进行过滤
+func (pc *PlatformClient) FilteringTokens(fr *pb.FilterRequest) (bool, []string, error) {
 	if !pc.initialized {
-		return nil, errors.New("PlatformClient 未初始化。")
+		return false, nil, errors.New("PlatformClient 未初始化。")
+	}
+
+	resp, err := pc.client.Filter(context.Background(), fr)
+	if err != nil {
+		return false, nil, err
+	}
+	return resp.Ready, resp.Tokens, nil
+
+}
+
+// FeedingKeywords 将查询传送给 Platform 进行查询
+func (pc *PlatformClient) FeedingKeywords(qr *pb.QueryRequest) ([]string, []float32, error) {
+	if !pc.initialized {
+		return nil, nil, errors.New("PlatformClient 未初始化。")
 	}
 
 	resp, err := pc.client.Query(context.Background(), qr)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return resp.Hashs, nil
+	return resp.Keywords, resp.Probabilities, nil
 }
 
 // CloseStreamingDoc 关闭 Fit API 数据流

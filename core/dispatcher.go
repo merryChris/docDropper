@@ -1,9 +1,7 @@
 package core
 
 import (
-	"crypto/sha1"
 	"errors"
-	"fmt"
 	"log"
 	"runtime"
 	"sync"
@@ -12,6 +10,7 @@ import (
 	"github.com/huichen/murmur"
 	"github.com/huichen/sego"
 	"github.com/huichen/wukong/engine"
+	"github.com/huichen/wukong/types"
 	pb "github.com/merryChris/docDropper/protos"
 	"github.com/spf13/viper"
 )
@@ -21,35 +20,40 @@ var (
 )
 
 type Dispatcher struct {
-	initialized            bool
-	healthy                bool
-	numSego                int
-	segmenter              sego.Segmenter
-	stopper                engine.StopTokens
-	client                 *PlatformClient
-	numDocsAdded           uint64
-	numDocsSent            uint64
-	segmenterAddChannel    []chan SegoReq
-	segmenterReturnChannel chan pb.FitRequest
+	initialized                  bool
+	healthy                      bool
+	useModel                     bool
+	numSego                      int
+	segmenter                    sego.Segmenter
+	stopper                      engine.StopTokens
+	searcher                     engine.Engine
+	client                       *PlatformClient
+	numDocsAdded                 uint64
+	numDocsSent                  uint64
+	numDocsIndexed               uint64
+	segmenterModelAddChannel     []chan SegoReq
+	segmenterEngineAddChannel    []chan SegoReq
+	segmenterModelReturnChannel  chan pb.FitRequest
+	segmenterEngineReturnChannel chan DocIndexData
 
 	docsLock struct {
 		sync.RWMutex
-		mapper map[string]*BriefNews
+		mapper map[uint64]*BriefNews
 	}
 }
 
-// NewDispatcher 生成 Dispatcher，用来分发训练数据
-func NewDispatcher(client *PlatformClient, conf *viper.Viper, numSegmenter int) (*Dispatcher, error) {
-	d := &Dispatcher{healthy: true, numSego: numSegmenter, segmenter: sego.Segmenter{},
-		stopper: engine.StopTokens{}, client: client}
+// NewDispatcher 生成 Dispatcher，用来分发训练数据，搜索查询
+func NewDispatcher(client *PlatformClient, dbConf *viper.Viper, srvConf *viper.Viper) (*Dispatcher, error) {
+	d := &Dispatcher{healthy: true, numSego: srvConf.GetInt("num_segmenter"), useModel: srvConf.GetBool("use_model"),
+		segmenter: sego.Segmenter{}, stopper: engine.StopTokens{}, client: client}
 
-	if err := InitOrm(conf.GetString("username"),
-		conf.GetString("password"),
-		conf.GetString("host"),
-		conf.GetString("port"),
-		conf.GetString("dbname"),
-		conf.GetInt("max_idle_connections"),
-		conf.GetInt("max_open_connections")); err != nil {
+	if err := InitOrm(dbConf.GetString("username"),
+		dbConf.GetString("password"),
+		dbConf.GetString("host"),
+		dbConf.GetString("port"),
+		dbConf.GetString("dbname"),
+		dbConf.GetInt("max_idle_connections"),
+		dbConf.GetInt("max_open_connections")); err != nil {
 		return nil, err
 	}
 
@@ -57,23 +61,33 @@ func NewDispatcher(client *PlatformClient, conf *viper.Viper, numSegmenter int) 
 	d.stopper.Init("data/stop_tokens.txt")
 	d.numDocsAdded = uint64(0)
 	d.numDocsSent = uint64(0)
-	d.docsLock.mapper = make(map[string]*BriefNews)
+	d.numDocsIndexed = uint64(0)
+	d.docsLock.mapper = make(map[uint64]*BriefNews)
 
-	d.segmenterAddChannel = make([]chan SegoReq, numSegmenter)
-	d.segmenterReturnChannel = make(chan pb.FitRequest, SegmenterBufferSize)
+	d.segmenterModelAddChannel = make([]chan SegoReq, d.numSego)
+	d.segmenterEngineAddChannel = make([]chan SegoReq, d.numSego)
+	d.segmenterModelReturnChannel = make(chan pb.FitRequest, SegmenterBufferSize)
+	d.segmenterEngineReturnChannel = make(chan DocIndexData, SegmenterBufferSize)
 	for shard := 0; shard < d.numSego; shard++ {
-		d.segmenterAddChannel[shard] = make(chan SegoReq, SegmenterBufferSize)
+		d.segmenterModelAddChannel[shard] = make(chan SegoReq, SegmenterBufferSize)
+		d.segmenterEngineAddChannel[shard] = make(chan SegoReq, SegmenterBufferSize)
 	}
 	for shard := 0; shard < d.numSego; shard++ {
-		go d.segmenterWorker(shard)
+		go d.segmenterModelWorker(shard)
+		go d.segmenterEngineWorker(shard)
 	}
-	go d.Collect()
+	go d.CollectForModel()
+	go d.CollectForEngine()
+
+	engineOptions := types.EngineInitOptions{NotUsingSegmenter: true, UsePersistentStorage: false}
+	engineOptions.Init()
+	d.searcher.Init(engineOptions)
 
 	d.initialized = true
 	return d, nil
 }
 
-func (d *Dispatcher) Dispatch(initModel bool, numNews uint32) error {
+func (d *Dispatcher) Dispatch(initModel bool, numNews uint64) error {
 	if !d.initialized {
 		return errors.New("Dispatcher 尚未初始化")
 	}
@@ -83,15 +97,12 @@ func (d *Dispatcher) Dispatch(initModel bool, numNews uint32) error {
 		return err
 	}
 
-	hf := sha1.New()
 	d.docsLock.Lock()
 	for _, news := range newsList.Units {
-		hf.Write([]byte(news.Title))
-		hash := fmt.Sprintf("%x", hf.Sum(nil))
-		d.docsLock.mapper[hash] = &BriefNews{Id: news.Id, Source: news.Source, Title: news.Title}
+		d.docsLock.mapper[news.Id] = &BriefNews{Id: news.Id, Source: news.Source, Title: news.Title}
 		if initModel {
 			shard := murmur.Murmur3([]byte(news.Title)) % uint32(d.numSego)
-			d.segmenterAddChannel[shard] <- SegoReq{Hash: hash, Title: news.Title, Content: news.Content}
+			d.segmenterModelAddChannel[shard] <- SegoReq{Id: news.Id, Title: news.Title, Content: news.Content}
 		}
 	}
 	d.docsLock.Unlock()
@@ -105,43 +116,13 @@ func (d *Dispatcher) Dispatch(initModel bool, numNews uint32) error {
 			}
 		}
 	}
+
 	return nil
 }
 
-func (d *Dispatcher) Search(text string) ([]*BriefNews, error) {
-	if !d.initialized {
-		return nil, errors.New("Dispatcher 尚未初始化")
-	}
-
-	keywords := make([]string, 0)
-	segments := d.segmenter.Segment([]byte(text))
-	for _, segment := range segments {
-		token := segment.Token().Text()
-		if !d.stopper.IsStopToken(token) {
-			keywords = append(keywords, token)
-		}
-	}
-
-	query := &pb.QueryRequest{Keywords: keywords}
-	outputHashs, err := d.client.FeedingKeywords(query)
-	if err != nil {
-		return nil, err
-	}
-
-	bns := make([]*BriefNews, len(outputHashs))
-	d.docsLock.RLock()
-	defer d.docsLock.RUnlock()
-	for i, hash := range outputHashs {
-		if bn, found := d.docsLock.mapper[hash]; found {
-			bns[i] = bn
-		}
-	}
-	return bns, nil
-}
-
-func (d *Dispatcher) Collect() {
+func (d *Dispatcher) CollectForModel() {
 	for {
-		doc, alive := <-d.segmenterReturnChannel
+		doc, alive := <-d.segmenterModelReturnChannel
 		if !alive {
 			break
 		}
@@ -157,9 +138,11 @@ func (d *Dispatcher) Collect() {
 func (d *Dispatcher) Close() {
 	if d.initialized {
 		for shard := 0; shard < d.numSego; shard++ {
-			close(d.segmenterAddChannel[shard])
+			close(d.segmenterModelAddChannel[shard])
+			close(d.segmenterEngineAddChannel[shard])
 		}
-		close(d.segmenterReturnChannel)
+		close(d.segmenterModelReturnChannel)
+		close(d.segmenterEngineReturnChannel)
 		if err := d.client.CloseStreamingDoc(); err != nil {
 			panic(err)
 		}
