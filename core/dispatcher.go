@@ -143,9 +143,6 @@ func (d *Dispatcher) Close() {
 		}
 		close(d.segmenterModelReturnChannel)
 		close(d.segmenterEngineReturnChannel)
-		if err := d.client.CloseStreamingDoc(); err != nil {
-			panic(err)
-		}
 		d.initialized = false
 	}
 }

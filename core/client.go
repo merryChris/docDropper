@@ -56,36 +56,44 @@ func (pc *PlatformClient) FilteringTokens(fr *pb.FilterRequest) (bool, []string,
 	if err != nil {
 		return false, nil, err
 	}
-	return resp.Ready, resp.Tokens, nil
-
+	if resp.Code != 0 {
+		return false, nil, nil
+	}
+	return true, resp.Tokens, nil
 }
 
 // FeedingKeywords 将查询传送给 Platform 进行查询
-func (pc *PlatformClient) FeedingKeywords(qr *pb.QueryRequest) ([]string, []float32, error) {
+func (pc *PlatformClient) FeedingKeywords(qr *pb.QueryRequest) (bool, []string, []float32, error) {
 	if !pc.initialized {
-		return nil, nil, errors.New("PlatformClient 未初始化。")
+		return false, nil, nil, errors.New("PlatformClient 未初始化。")
 	}
 
 	resp, err := pc.client.Query(context.Background(), qr)
 	if err != nil {
-		return nil, nil, err
+		return false, nil, nil, err
 	}
-	return resp.Keywords, resp.Probabilities, nil
+	if resp.Code != 0 {
+		return false, nil, nil, nil
+	}
+	return true, resp.Keywords, resp.Probabilities, nil
 }
 
 // CloseStreamingDoc 关闭 Fit API 数据流
 func (pc *PlatformClient) CloseStreamingDoc() error {
-	reply, err := pc.fitStream.CloseAndRecv()
+	resp, err := pc.fitStream.CloseAndRecv()
 	if err != nil {
 		return err
 	}
-	log.Printf("Closed `Fit` API with `%s`.\n", reply.Message)
+	log.Printf("Closed `Fit` API with `%d: %s`.\n", resp.Code, resp.Message)
 	return nil
 }
 
 // Close 关闭到服务器的连接
 func (pc *PlatformClient) Close() {
 	if pc.initialized {
+		if err := pc.CloseStreamingDoc(); err != nil {
+			panic(err)
+		}
 		if err := pc.conn.Close(); err != nil {
 			panic(err)
 		}

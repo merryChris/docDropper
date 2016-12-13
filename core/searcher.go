@@ -58,7 +58,7 @@ func (d *Dispatcher) CollectForEngine() {
 					log.Fatal(err)
 				}
 				if !ready {
-					wait := time.After(time.Second)
+					wait := time.After(time.Second * 10)
 					<-wait
 					continue
 				}
@@ -97,36 +97,42 @@ func (d *Dispatcher) Search(text string, topK int) ([]*BriefNews, error) {
 	}
 
 	docIds := make([]uint64, 0)
+	found := false
 	if d.useModel {
 		query := &pb.QueryRequest{Keywords: keywords}
-		context, probabilities, err := d.client.FeedingKeywords(query)
+		ready, context, probabilities, err := d.client.FeedingKeywords(query)
 		if err != nil {
 			return nil, err
 		}
 
-		tokenScores := make(map[uint64]float32)
-		for i, token := range context {
-			docs := d.searcher.Search(types.SearchRequest{Tokens: []string{token}})
-			for _, doc := range docs.Docs {
-				//NOTE: (zacky, 2016.DEC.12th) JUST IGNORE `doc.Scores` HERE.
-				tokenScores[doc.DocId] += probabilities[i]
-			}
-		}
-		// 插入排序
-		for d, _ := range tokenScores {
-			if len(docIds) <= topK {
-				docIds = append(docIds, d)
-			} else {
-				docIds[topK] = d
-			}
-			for i := len(docIds) - 1; i > 0; i-- {
-				if tokenScores[docIds[i]] < tokenScores[docIds[i-1]] {
-					break
+		if ready {
+			tokenScores := make(map[uint64]float32)
+			for i, token := range context {
+				docs := d.searcher.Search(types.SearchRequest{Tokens: []string{token}})
+				for _, doc := range docs.Docs {
+					//NOTE: (zacky, 2016.DEC.12th) JUST IGNORE `doc.Scores` HERE.
+					tokenScores[doc.DocId] += probabilities[i]
 				}
-				docIds[i], docIds[i-1] = docIds[i-1], docIds[i]
 			}
+			// 插入排序
+			for d, _ := range tokenScores {
+				if len(docIds) <= topK {
+					docIds = append(docIds, d)
+				} else {
+					docIds[topK] = d
+				}
+				for i := len(docIds) - 1; i > 0; i-- {
+					if tokenScores[docIds[i]] < tokenScores[docIds[i-1]] {
+						break
+					}
+					docIds[i], docIds[i-1] = docIds[i-1], docIds[i]
+				}
+			}
+			found = true
 		}
-	} else {
+	}
+
+	if !d.useModel || !found {
 		docs := d.searcher.Search(types.SearchRequest{Tokens: keywords})
 		for i := 0; i < len(docs.Docs) && i < topK; i++ {
 			docIds = append(docIds, docs.Docs[i].DocId)
