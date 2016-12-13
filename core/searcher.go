@@ -27,6 +27,7 @@ func (d *Dispatcher) Index(numNews uint64) error {
 		d.segmenterEngineAddChannel[shard] <- SegoReq{Id: news.Id, Title: news.Title, Content: news.Content}
 	}
 
+	atomic.AddUint64(&d.numDocsAdded, uint64(len(newsList.Units)))
 	for {
 		d.searcher.FlushIndex()
 		runtime.Gosched()

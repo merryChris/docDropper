@@ -28,8 +28,9 @@ type Dispatcher struct {
 	stopper                      engine.StopTokens
 	searcher                     engine.Engine
 	client                       *PlatformClient
-	numDocsAdded                 uint64
+	numDocsTrained               uint64
 	numDocsSent                  uint64
+	numDocsAdded                 uint64
 	numDocsIndexed               uint64
 	segmenterModelAddChannel     []chan SegoReq
 	segmenterEngineAddChannel    []chan SegoReq
@@ -59,8 +60,9 @@ func NewDispatcher(client *PlatformClient, dbConf *viper.Viper, srvConf *viper.V
 
 	d.segmenter.LoadDictionary("data/dictionary.txt")
 	d.stopper.Init("data/stop_tokens.txt")
-	d.numDocsAdded = uint64(0)
+	d.numDocsTrained = uint64(0)
 	d.numDocsSent = uint64(0)
+	d.numDocsAdded = uint64(0)
 	d.numDocsIndexed = uint64(0)
 	d.docsLock.mapper = make(map[uint64]*BriefNews)
 
@@ -108,10 +110,10 @@ func (d *Dispatcher) Dispatch(initModel bool, numNews uint64) error {
 	d.docsLock.Unlock()
 
 	if initModel {
-		atomic.AddUint64(&d.numDocsAdded, uint64(len(newsList.Units)))
+		atomic.AddUint64(&d.numDocsTrained, uint64(len(newsList.Units)))
 		for {
 			runtime.Gosched()
-			if d.numDocsAdded == d.numDocsSent || !d.healthy {
+			if d.numDocsTrained == d.numDocsSent || !d.healthy {
 				break
 			}
 		}
