@@ -36,6 +36,10 @@ func (d *Dispatcher) Index(numNews uint64) error {
 		}
 	}
 
+	if d.statsMode {
+		log.Printf("Indexing Statistics Info: %d %d %d %d\n", d.totalLength, d.totalBytes, d.filteredLength, d.filteredBytes)
+	}
+
 	return nil
 }
 
@@ -44,6 +48,13 @@ func (d *Dispatcher) CollectForEngine() {
 		doc, alive := <-d.segmenterEngineReturnChannel
 		if !alive {
 			break
+		}
+
+		if d.statsMode {
+			for _, token := range doc.Tokens {
+				d.totalLength += len([]rune(token.Text)) * len(token.Locations)
+				d.totalBytes += len(token.Text) * len(token.Locations)
+			}
 		}
 
 		if d.useModel {
@@ -76,6 +87,12 @@ func (d *Dispatcher) CollectForEngine() {
 				}
 				doc.Tokens = doc.Tokens[:len(filteredTokens)]
 				break
+			}
+		}
+		if d.statsMode {
+			for _, token := range doc.Tokens {
+				d.filteredLength += len([]rune(token.Text)) * len(token.Locations)
+				d.filteredBytes += len(token.Text) * len(token.Locations)
 			}
 		}
 		d.searcher.IndexDocument(doc.Id, types.DocumentIndexData{Tokens: doc.Tokens}, false)

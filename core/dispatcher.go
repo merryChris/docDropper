@@ -23,6 +23,7 @@ type Dispatcher struct {
 	initialized                  bool
 	healthy                      bool
 	useModel                     bool
+	statsMode                    bool
 	numSego                      int
 	segmenter                    sego.Segmenter
 	stopper                      engine.StopTokens
@@ -32,6 +33,10 @@ type Dispatcher struct {
 	numDocsSent                  uint64
 	numDocsAdded                 uint64
 	numDocsIndexed               uint64
+	totalLength                  int
+	totalBytes                   int
+	filteredLength               int
+	filteredBytes                int
 	segmenterModelAddChannel     []chan SegoReq
 	segmenterEngineAddChannel    []chan SegoReq
 	segmenterModelReturnChannel  chan pb.FitRequest
@@ -46,7 +51,9 @@ type Dispatcher struct {
 // NewDispatcher 生成 Dispatcher，用来分发训练数据，搜索查询
 func NewDispatcher(client *PlatformClient, dbConf *viper.Viper, srvConf *viper.Viper) (*Dispatcher, error) {
 	d := &Dispatcher{healthy: true, numSego: srvConf.GetInt("num_segmenter"), useModel: srvConf.GetBool("use_model"),
-		segmenter: sego.Segmenter{}, stopper: engine.StopTokens{}, client: client}
+		statsMode: srvConf.GetBool("statistic_mode"), segmenter: sego.Segmenter{}, stopper: engine.StopTokens{},
+		client: client, numDocsTrained: 0, numDocsSent: 0, numDocsAdded: 0, numDocsIndexed: 0, totalLength: 0,
+		totalBytes: 0, filteredLength: 0, filteredBytes: 0}
 
 	if err := InitOrm(dbConf.GetString("username"),
 		dbConf.GetString("password"),
@@ -60,10 +67,6 @@ func NewDispatcher(client *PlatformClient, dbConf *viper.Viper, srvConf *viper.V
 
 	d.segmenter.LoadDictionary("data/dictionary.txt")
 	d.stopper.Init("data/stop_tokens.txt")
-	d.numDocsTrained = uint64(0)
-	d.numDocsSent = uint64(0)
-	d.numDocsAdded = uint64(0)
-	d.numDocsIndexed = uint64(0)
 	d.docsLock.mapper = make(map[uint64]*BriefNews)
 
 	d.segmenterModelAddChannel = make([]chan SegoReq, d.numSego)
