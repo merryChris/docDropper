@@ -37,7 +37,7 @@ func (d *Dispatcher) Index(numNews uint64) error {
 	}
 
 	if d.statsMode {
-		log.Printf("Indexing Statistics Info: %d %d %d %d\n", d.totalLength, d.totalBytes, d.filteredLength, d.filteredBytes)
+		log.Printf("Indexing Statistics Info: %d %d %d %d %d\n", d.totalLength, d.totalBytes, d.filteredLength, d.filteredBytes, len(d.tokenDic))
 	}
 
 	return nil
@@ -54,6 +54,7 @@ func (d *Dispatcher) CollectForEngine() {
 			for _, token := range doc.Tokens {
 				d.totalLength += len([]rune(token.Text)) * len(token.Locations)
 				d.totalBytes += len(token.Text) * len(token.Locations)
+				d.tokenDic[token.Text] = true
 			}
 		}
 

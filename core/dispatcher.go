@@ -37,6 +37,7 @@ type Dispatcher struct {
 	totalBytes                   int
 	filteredLength               int
 	filteredBytes                int
+	tokenDic                     map[string]bool
 	segmenterModelAddChannel     []chan SegoReq
 	segmenterEngineAddChannel    []chan SegoReq
 	segmenterModelReturnChannel  chan pb.FitRequest
@@ -68,6 +69,7 @@ func NewDispatcher(client *PlatformClient, dbConf *viper.Viper, srvConf *viper.V
 	d.segmenter.LoadDictionary("data/dictionary.txt")
 	d.stopper.Init("data/stop_tokens.txt")
 	d.docsLock.mapper = make(map[uint64]*BriefNews)
+	d.tokenDic = make(map[string]bool)
 
 	d.segmenterModelAddChannel = make([]chan SegoReq, d.numSego)
 	d.segmenterEngineAddChannel = make([]chan SegoReq, d.numSego)
